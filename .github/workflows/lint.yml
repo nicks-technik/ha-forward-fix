@@ -1,6 +1,6 @@
 name: Lint
 
-on:
+"on":
   pull_request:
   push:
     branches: [main]
@@ -11,11 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: ShellCheck
-        uses: koalaman/shellcheck-py@v0.1.0
-        with:
-          path: forward-fix/run.sh
-          severity: warning
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - run: shellcheck -S warning forward-fix/run.sh forward-fix/lib.sh
 
   yamllint:
     runs-on: ubuntu-latest
@@ -24,8 +22,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - run: pip install yamllint
-      - run: yamllint -d "{extends: default, rules: {line-length: {max: 120}, document-start: disable}}" repository.yaml forward-fix/config.yaml forward-fix/build.yaml .github/workflows/ .github/dependabot.yml
+      - name: Lint YAML
+        run: |
+          pip install yamllint
+          yamllint -d "{extends: default, rules: {line-length: {max: 120}, document-start: disable}}" \
+            repository.yaml forward-fix/config.yaml forward-fix/build.yaml \
+            .github/workflows/ .github/dependabot.yml
 
   hadolint:
     runs-on: ubuntu-latest

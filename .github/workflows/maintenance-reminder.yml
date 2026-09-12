@@ -1,6 +1,6 @@
 name: Monthly maintenance reminder
 
-on:
+"on":
   schedule:
     - cron: "0 8 1 * *"
   workflow_dispatch:
@@ -36,11 +36,14 @@ jobs:
               body: [
                 'Monthly firewall-tool maintenance checklist:',
                 '',
-                '- [ ] Check `ghcr.io/home-assistant/*-base` for a newer tag than the pins in `forward-fix/build.yaml`.',
-                '- [ ] If newer: bump pins, bump `version` in `forward-fix/config.yaml`, add a CHANGELOG entry.',
-                '- [ ] Rebuild locally (`ha apps rebuild local_forward_fix` on a test HAOS) or bump and cut a new release tag.',
+                '- [ ] Check `ghcr.io/home-assistant/*-base` for a newer',
+                '  tag than the pins in `forward-fix/build.yaml`.',
+                '- [ ] If newer: bump pins, bump `version` in',
+                '  `forward-fix/config.yaml`, add a CHANGELOG entry.',
+                '- [ ] Rebuild locally or bump and cut a new release tag.',
                 '- [ ] Close this issue when done.',
                 '',
-                'Unattended auto-bumps are deliberately off for this firewall tool: every base change gets a human look.',
+                'Unattended auto-bumps are deliberately off for this',
+                'firewall tool: every base change gets a human look.',
               ].join('\n'),
             });
