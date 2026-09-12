@@ -19,6 +19,9 @@ This add-on persists the fix across reboots and updates by re-applying
 Works with NetBird (`wt0`), Tailscale (`tailscale0`), WireGuard (`wg0`) —
 interface lists are configurable, zero-config defaults cover the common case.
 
+> Tested working with Home Assistant Core 2026.9.2 (HAOS 18.2,
+> Supervisor 2026.09.0, Raspberry Pi 4, NetBird add-on v0.78.1).
+
 ## Installation
 
 1. In Home Assistant: **Settings → Add-ons → Add-on Store → ⋯ → Repositories**,
