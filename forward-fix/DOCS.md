@@ -88,7 +88,10 @@ while true; do clear; date; iptables -L DOCKER-USER -v -n; sleep 2; done
 
 ## Viewing the increasing counters (defined)
 
-`status.json` is rewritten every cycle with cumulative totals. Field reference:
+`status.json` is rewritten every enforcement cycle (default 30 s, configurable
+via `enforce_interval_seconds`, 5–3600 s) with cumulative totals. The `watch -n 2`
+in the commands below only refreshes your *display* every 2 s — the file
+itself (and MQTT state) update on the enforcement cycle. Field reference:
 
 | Field | Meaning |
 |---|---|
