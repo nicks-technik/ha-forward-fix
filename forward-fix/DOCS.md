@@ -59,7 +59,16 @@ rules (Docker's own, other tools'). Deletions are logged with `pruned ...`.
 {"timestamp":"2026-09-12T06:00:00Z","lan_interfaces":"end0 eth0 wlan0","vpn_interfaces":"wt0","docker_user_accept_rules":4,"healthy":"ON","packets_total":12345,"bytes_total":987654,"docker_user_accept_rules_v6":null,"packets_total_v6":null,"bytes_total_v6":null,"ipv6_enabled":false,"added_this_cycle":0,"pruned_this_cycle":0}
 ```
 `packets_total` / `bytes_total` sum the live `DOCKER-USER` counters, so you can
-watch throughput without parsing logs. A quiet log means steady state;
+watch throughput without parsing logs.
+
+What the counters actually measure (important): they count packets that fall
+through to our rules — in practice the **first packet of each connection**
+(NEW state). Ongoing packets of an established flow are accepted earlier by
+Docker's own `RELATED,ESTABLISHED` rule and never reach `DOCKER-USER`. So the
+counters track *flows started*, not total throughput: a `ping -t` ticks once
+at start, then stays flat; short-lived connections (new flows) keep it moving.
+Replies (`wt0 → LAN`) never count for the same reason. This is by design of
+the chain ordering, not a bug. A quiet log means steady state;
 `added_this_cycle > 0` after Docker/VPN restarts is normal (chain was recreated).
 `binary_sensor.forward_fix_healthy` mirrors rule presence for automations
 (connectivity device class, diagnose-gated like the other entities).
@@ -84,7 +93,7 @@ while true; do clear; date; iptables -L DOCKER-USER -v -n; sleep 2; done
 | Field | Meaning |
 |---|---|
 | `timestamp` | UTC time of this snapshot — advances every cycle; if it stops advancing, the loop is stuck |
-| `last_change` | UTC time the ruleset was last modified — frozen means stable (good); moves only when rules are added/pruned |
+| `last_change` | UTC time the ruleset was last modified — frozen means stable (good); moves only when rules are added/pruned, **not** when traffic flows |
 | `lan_interfaces` / `vpn_interfaces` | effective interface sets this cycle (config + auto-detect) |
 | `docker_user_accept_rules` | current ACCEPT rule count in `DOCKER-USER` (18 = 3 LAN × 3 VPN × 2 directions) |
 | `packets_total` / `bytes_total` | cumulative packets/bytes matched by **all** `DOCKER-USER` rules — these only ever increase while traffic flows |
