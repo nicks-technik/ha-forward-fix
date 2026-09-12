@@ -19,7 +19,19 @@ configuration:
     description: Mirror the rules to ip6tables (uses IPv6 entries from the subnet lists, or interface-wide).
   diagnose:
     name: Diagnose mode
-    description: Log addresses, routes and DOCKER-USER state once at startup. Use for troubleshooting, then turn off.
+    description: Log addresses, routes and DOCKER-USER state once at startup. Also enables the MQTT counter entities below. Use for troubleshooting, then turn off.
   enforce_interval_seconds:
     name: Enforcement interval
     description: Seconds between re-applying the DOCKER-USER rules (5-3600).
+  mqtt_host:
+    name: MQTT broker host
+    description: Hostname/IP of your MQTT broker (e.g. core-mosquitto). Empty = no UI entities. Only used while Diagnose mode is on.
+  mqtt_port:
+    name: MQTT broker port
+    description: Broker port, usually 1883.
+  mqtt_username:
+    name: MQTT username
+    description: Broker login, if required.
+  mqtt_password:
+    name: MQTT password
+    description: Broker password, if required.

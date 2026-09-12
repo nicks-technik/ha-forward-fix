@@ -49,6 +49,19 @@ interfaces and rule counts; rules are only logged when something changes, so a
 quiet log means "steady state". For one-shot diagnostics, enable `diagnose`,
 restart, and read the add-on log (addresses, routes, chain state).
 
+## UI counter (MQTT, diagnose-gated)
+
+Set `diagnose: true` and fill in your MQTT broker (`mqtt_host`, port, login).
+The add-on then publishes retained discovery + state, creating three entities
+under a "Forward Fix" device — visible only while diagnose mode is on:
+
+* `sensor.forward_fix_packets` (total_increasing) — forwarded packets
+* `sensor.forward_fix_bytes` (B, total_increasing) — forwarded bytes
+* `sensor.forward_fix_rules` — active rule count
+
+Turning `diagnose` off removes the entities again automatically. No broker
+configured = no entities, firewall enforcement works the same.
+
 ## Screenshots
 
 ![Add-on info](images/store-info.png)

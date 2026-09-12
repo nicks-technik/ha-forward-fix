@@ -13,12 +13,19 @@
 
 OPTIONS_FILE="/data/options.json"
 STATUS_FILE="/data/status.json"
+MQTT_FLAG="/data/.mqtt_published"
+MQTT_DISC_PREFIX="homeassistant"
+MQTT_STATE_TOPIC="forward-fix/stats"
 DEFAULT_LAN="end0 eth0 wlan0"
 DEFAULT_VPN="wt0 tailscale0 wg0"
 INTERVAL=30
 AUTO_DETECT=true
 ENABLE_IPV6=false
 DIAGNOSE=false
+MQTT_HOST=""
+MQTT_PORT=1883
+MQTT_USER=""
+MQTT_PASS=""
 FIRST_RUN=true
 LAST_SIG=""
 
@@ -58,12 +65,21 @@ load_options() {
     IP6="$(jq -r '.enable_ipv6 // empty' "$OPTIONS_FILE" 2>/dev/null)"
     DG="$(jq -r '.diagnose // empty' "$OPTIONS_FILE" 2>/dev/null)"
     INT="$(jq -r '.enforce_interval_seconds // empty' "$OPTIONS_FILE" 2>/dev/null)"
+    MH="$(jq -r '.mqtt_host // empty' "$OPTIONS_FILE" 2>/dev/null)"
+    MP="$(jq -r '.mqtt_port // empty' "$OPTIONS_FILE" 2>/dev/null)"
+    MU="$(jq -r '.mqtt_username // empty' "$OPTIONS_FILE" 2>/dev/null)"
+    MW="$(jq -r '.mqtt_password // empty' "$OPTIONS_FILE" 2>/dev/null)"
     [ "$AD" = "true" ] && AUTO_DETECT=true
     [ "$AD" = "false" ] && AUTO_DETECT=false
     [ "$IP6" = "true" ] && ENABLE_IPV6=true
     [ "$IP6" = "false" ] && ENABLE_IPV6=false
     [ "$DG" = "true" ] && DIAGNOSE=true
     [ "$DG" = "false" ] && DIAGNOSE=false
+    MQTT_HOST="$MH"; MQTT_USER="$MU"; MQTT_PASS="$MW"
+    case "$MP" in
+      ''|*[!0-9]* ) MQTT_PORT=1883 ;;
+      *) if [ "$MP" -ge 1 ] && [ "$MP" -le 65535 ]; then MQTT_PORT="$MP"; else MQTT_PORT=1883; fi ;;
+    esac
     case "$INT" in
       ''|*[!0-9]* ) ;;
       *) if [ "$INT" -ge 5 ] && [ "$INT" -le 3600 ]; then INTERVAL="$INT"; fi ;;
@@ -284,6 +300,65 @@ diagnose() {
   fi
 }
 
+mqtt_pub() {
+  # $1=topic $2=payload $3=retain(1/0)
+  [ -n "$MQTT_HOST" ] || return 1
+  command -v mosquitto_pub >/dev/null 2>&1 || return 1
+  # shellcheck disable=SC2086
+  if [ -n "$MQTT_USER" ]; then
+    if [ "$3" = "1" ]; then
+      mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$1" -m "$2" -r -q 1 >/dev/null 2>&1
+    else
+      mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$1" -m "$2" -q 0 >/dev/null 2>&1
+    fi
+  else
+    if [ "$3" = "1" ]; then
+      mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -t "$1" -m "$2" -r -q 1 >/dev/null 2>&1
+    else
+      mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -t "$1" -m "$2" -q 0 >/dev/null 2>&1
+    fi
+  fi
+}
+
+mqtt_device() {
+  printf '{"identifiers":["forward_fix"],"name":"Forward Fix","model":"Forward Fix","manufacturer":"ha-forward-fix"}'
+}
+
+mqtt_discovery() {
+  # $1=sensor_key $2=name $3=unit $4=value_template $5=extra_json (device_class/state_class)
+  printf '{"name":"%s","unique_id":"forward_fix_%s","state_topic":"%s","value_template":"%s","device":%s%s}' \
+    "$2" "$1" "$MQTT_STATE_TOPIC" "$4" "$(mqtt_device)" "$5"
+}
+
+mqtt_cycle() {
+  # UI counter entities exist only while diagnose mode is on.
+  if [ "$DIAGNOSE" = "true" ] && [ -n "$MQTT_HOST" ] && [ -f "$STATUS_FILE" ] \
+      && command -v mosquitto_pub >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    STATE="$(jq -c '{packets_total,bytes_total,docker_user_accept_rules}' "$STATUS_FILE" 2>/dev/null)"
+    [ -n "$STATE" ] || return 0
+    mqtt_pub "$MQTT_DISC_PREFIX/sensor/forward_fix_packets/config" \
+      "$(mqtt_discovery packets_total "Forward Fix packets" packets '{{ value_json.packets_total }}' ',"state_class":"total_increasing"')" 1
+    mqtt_pub "$MQTT_DISC_PREFIX/sensor/forward_fix_bytes/config" \
+      "$(mqtt_discovery bytes_total "Forward Fix bytes" B '{{ value_json.bytes_total }}' ',"device_class":"data_size","state_class":"total_increasing"')" 1
+    mqtt_pub "$MQTT_DISC_PREFIX/sensor/forward_fix_rules/config" \
+      "$(mqtt_discovery docker_user_accept_rules "Forward Fix rules" rules '{{ value_json.docker_user_accept_rules }}' '')" 1
+    if mqtt_pub "$MQTT_STATE_TOPIC" "$STATE" 1; then
+      touch "$MQTT_FLAG" 2>/dev/null
+    else
+      log "MQTT publish failed ($MQTT_HOST:$MQTT_PORT), will retry"
+    fi
+  else
+    # diagnose off (or broker unconfigured): remove entities if we created them
+    if [ -f "$MQTT_FLAG" ] && [ -n "$MQTT_HOST" ] && command -v mosquitto_pub >/dev/null 2>&1; then
+      for s in packets bytes rules; do
+        mqtt_pub "$MQTT_DISC_PREFIX/sensor/forward_fix_${s}/config" "" 1
+      done
+      rm -f "$MQTT_FLAG" 2>/dev/null
+      log "diagnose off: removed MQTT entities"
+    fi
+  fi
+}
+
 log "starting Forward Fix"
 while true; do
   load_options
@@ -299,6 +374,7 @@ while true; do
       LAST_SIG="$SIG"
     fi
     write_status $((ADDED+ADDED6))
+    mqtt_cycle
   else
     log "DOCKER-USER not ready, retrying..."
   fi
