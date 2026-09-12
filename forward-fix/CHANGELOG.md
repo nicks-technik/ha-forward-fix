@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+
+- UI counter entities via MQTT discovery (`sensor.forward_fix_packets`,
+  `sensor.forward_fix_bytes` with `total_increasing`, `sensor.forward_fix_rules`),
+  published only while `diagnose` mode is on; removed automatically when off.
+- New options: `mqtt_host` / `mqtt_port` / `mqtt_username` / `mqtt_password`.
+
 ## 1.1.2
 
 - Fix `added_this_cycle` in `status.json` (showed the packet total due to a

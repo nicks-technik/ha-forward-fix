@@ -107,6 +107,24 @@ a=$(cat /mnt/data/supervisor/apps/data/<slug>/status.json); sleep 60; b=$(cat /m
 If `packets_total` never increases while you use the VPN, the traffic is not
 passing this host — check the LAN router's static route first.
 
+## UI counter entities (MQTT)
+
+Home Assistant entities for the counters, shown only in diagnose mode:
+
+1. Add-on **Configuration**: set `diagnose: true`, set `mqtt_host` to your
+   broker (e.g. `core-mosquitto` if you run the Mosquitto add-on), adjust
+   port/login if needed, Save (add-on restarts).
+2. Entities appear automatically via MQTT discovery under device
+   **Forward Fix**: `sensor.forward_fix_packets`, `sensor.forward_fix_bytes`
+   (both `total_increasing`, so Lovelace graphs the increase),
+   `sensor.forward_fix_rules`.
+3. State updates every enforcement cycle to retained topic `forward-fix/stats`.
+4. Set `diagnose: false` when done — the entities are removed automatically
+   (retained discovery cleared). The password uses the `password` schema type
+   (masked in UI); like all add-on options it is stored in Supervisor config.
+
+No broker or empty `mqtt_host` = no entities; enforcement is unaffected.
+
 ## Monthly maintenance
 
 Dependabot watches Actions + Dockerfile; a monthly workflow opens a
