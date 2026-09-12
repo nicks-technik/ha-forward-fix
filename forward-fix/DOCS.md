@@ -83,7 +83,8 @@ while true; do clear; date; iptables -L DOCKER-USER -v -n; sleep 2; done
 
 | Field | Meaning |
 |---|---|
-| `timestamp` | UTC time of this snapshot — if it stops advancing, the loop is stuck |
+| `timestamp` | UTC time of this snapshot — advances every cycle; if it stops advancing, the loop is stuck |
+| `last_change` | UTC time the ruleset was last modified — frozen means stable (good); moves only when rules are added/pruned |
 | `lan_interfaces` / `vpn_interfaces` | effective interface sets this cycle (config + auto-detect) |
 | `docker_user_accept_rules` | current ACCEPT rule count in `DOCKER-USER` (18 = 3 LAN × 3 VPN × 2 directions) |
 | `packets_total` / `bytes_total` | cumulative packets/bytes matched by **all** `DOCKER-USER` rules — these only ever increase while traffic flows |

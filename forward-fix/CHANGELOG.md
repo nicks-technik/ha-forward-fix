@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.2
+
+- MQTT state now includes `timestamp`, so freshness is visible in MQTT
+  Explorer (previously only in `status.json`).
+- Docs: clarified `last_change` (frozen = stable ruleset, which is good) vs
+  `timestamp` (advances every cycle = loop alive).
+
 ## 1.3.1
 
 - Add-on info page "Visit page" link now works (`url` field).

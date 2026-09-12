@@ -3,7 +3,7 @@ description: >-
   Allow LAN clients to use site-to-site VPNs on HAOS (NetBird, Tailscale,
   WireGuard) by persisting DOCKER-USER forwarding rules
 url: https://github.com/nicks-technik/ha-forward-fix
-version: 1.3.1
+version: 1.3.2
 slug: forward_fix
 arch:
   - aarch64

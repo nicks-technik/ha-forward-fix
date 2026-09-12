@@ -341,7 +341,7 @@ mqtt_cycle() {
   # UI counter entities exist only while diagnose mode is on.
   if [ "$DIAGNOSE" = "true" ] && [ -n "$MQTT_HOST" ] && [ -f "$STATUS_FILE" ] \
       && command -v mosquitto_pub >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-    STATE="$(jq -c '{packets_total,bytes_total,docker_user_accept_rules,healthy,last_change}' "$STATUS_FILE" 2>/dev/null)"
+    STATE="$(jq -c '{timestamp,packets_total,bytes_total,docker_user_accept_rules,healthy,last_change}' "$STATUS_FILE" 2>/dev/null)"
     [ -n "$STATE" ] || return 0
     mqtt_pub "$MQTT_DISC_PREFIX/sensor/forward_fix_packets/config" \
       "$(mqtt_discovery packets_total "Forward Fix packets" packets '{{ value_json.packets_total }}' ',"state_class":"total_increasing"')" 1
