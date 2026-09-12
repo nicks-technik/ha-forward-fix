@@ -1,5 +1,9 @@
 # Forward Fix
 
+[![Release](https://img.shields.io/github/v/release/nicks-technik/ha-forward-fix)](https://github.com/nicks-technik/ha-forward-fix/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Lint](https://github.com/nicks-technik/ha-forward-fix/actions/workflows/lint.yml/badge.svg)](https://github.com/nicks-technik/ha-forward-fix/actions/workflows/lint.yml)
+
 Home Assistant add-on for **Home Assistant OS** that makes site-to-site VPNs
 usable for LAN clients.
 

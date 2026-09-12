@@ -1,6 +1,13 @@
 # Changelog
 
+## 1.3.1
+
+- Add-on info page "Visit page" link now works (`url` field).
+- `last_change` timestamp in `status.json` (and MQTT state): stable-since
+  visibility for the enforced ruleset.
+
 ## 1.3.0
+- BATS unit tests for the validation helpers, run in CI.
 
 - Health binary sensor: `binary_sensor.forward_fix_healthy` (connectivity
   device class, diagnose-gated) for alert automations; `healthy` also in
