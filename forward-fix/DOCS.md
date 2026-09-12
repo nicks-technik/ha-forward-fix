@@ -72,6 +72,41 @@ while true; do clear; date; iptables -L DOCKER-USER -v -n; sleep 2; done
 ``` For one-shot forensics use
 `diagnose: true` and read the add-on log.
 
+## Viewing the increasing counters (defined)
+
+`status.json` is rewritten every cycle with cumulative totals. Field reference:
+
+| Field | Meaning |
+|---|---|
+| `timestamp` | UTC time of this snapshot — if it stops advancing, the loop is stuck |
+| `lan_interfaces` / `vpn_interfaces` | effective interface sets this cycle (config + auto-detect) |
+| `docker_user_accept_rules` | current ACCEPT rule count in `DOCKER-USER` (18 = 3 LAN × 3 VPN × 2 directions) |
+| `packets_total` / `bytes_total` | cumulative packets/bytes matched by **all** `DOCKER-USER` rules — these only ever increase while traffic flows |
+| `*_v6` variants | same for `ip6tables` (`null` unless `enable_ipv6` is on) |
+| `added_this_cycle` | rules inserted this cycle — `0` in steady state; `> 0` right after Docker/VPN restarts recreated the chain |
+
+Watch it grow (host SSH, port 22222 — replace `<slug>` with your add-on slug,
+e.g. `e2f7ca3e_forward_fix`):
+
+```sh
+watch -n 5 cat /mnt/data/supervisor/apps/data/<slug>/status.json
+```
+
+Pretty-printed, packets/bytes only:
+
+```sh
+cat /mnt/data/supervisor/apps/data/<slug>/status.json | python3 -m json.tool | grep -E 'timestamp|packets|bytes'
+```
+
+Rate over 60 seconds (delta ÷ time):
+
+```sh
+a=$(cat /mnt/data/supervisor/apps/data/<slug>/status.json); sleep 60; b=$(cat /mnt/data/supervisor/apps/data/<slug>/status.json); echo "$a" | grep -o '"packets_total":[0-9]*'; echo "$b" | grep -o '"packets_total":[0-9]*'
+```
+
+If `packets_total` never increases while you use the VPN, the traffic is not
+passing this host — check the LAN router's static route first.
+
 ## Monthly maintenance
 
 Dependabot watches Actions + Dockerfile; a monthly workflow opens a
