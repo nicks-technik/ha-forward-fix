@@ -56,9 +56,20 @@ manually, see Uninstall.
 {"timestamp":"2026-09-12T06:00:00Z","lan_interfaces":"end0 eth0 wlan0","vpn_interfaces":"wt0","docker_user_accept_rules":4,"packets_total":12345,"bytes_total":987654,"docker_user_accept_rules_v6":null,"packets_total_v6":null,"bytes_total_v6":null,"ipv6_enabled":false,"added_this_cycle":0}
 ```
 `packets_total` / `bytes_total` sum the live `DOCKER-USER` counters, so you can
-watch throughput without SSH (`watch cat .../status.json` on the host, or poll
-the file). A quiet log means steady state; `added_this_cycle > 0` after Docker/VPN
-restarts is normal (chain was recreated). For one-shot forensics use
+watch throughput without parsing logs. A quiet log means steady state;
+`added_this_cycle > 0` after Docker/VPN restarts is normal (chain was recreated).
+
+Live per-rule counters via host SSH (port 22222), refreshing every 2 seconds:
+
+```sh
+watch -n 2 iptables -L DOCKER-USER -v -n
+```
+
+Append `-x` for exact (unrounded) numbers. If `watch` is unavailable:
+
+```sh
+while true; do clear; date; iptables -L DOCKER-USER -v -n; sleep 2; done
+``` For one-shot forensics use
 `diagnose: true` and read the add-on log.
 
 ## Monthly maintenance
