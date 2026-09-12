@@ -1,0 +1,10 @@
+configuration:
+  lan_interfaces:
+    name: LAN interfaces
+    description: Physical LAN interfaces allowed to forward into the VPN (e.g. end0, eth0, wlan0).
+  vpn_interfaces:
+    name: VPN tunnel interfaces
+    description: Tunnel interfaces to forward to (wt0 = NetBird, tailscale0 = Tailscale, wg0 = WireGuard).
+  enforce_interval_seconds:
+    name: Enforcement interval
+    description: Seconds between re-applying the DOCKER-USER rules (5-3600).
