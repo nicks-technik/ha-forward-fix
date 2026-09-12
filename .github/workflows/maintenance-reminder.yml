@@ -1,0 +1,46 @@
+name: Monthly maintenance reminder
+
+on:
+  schedule:
+    - cron: "0 8 1 * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const label = 'maintenance';
+            const title = 'Monthly base image refresh';
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: label,
+            });
+            if (open.data.some(i => i.title === title)) {
+              core.info('Reminder issue already open, skipping.');
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              labels: [label],
+              body: [
+                'Monthly firewall-tool maintenance checklist:',
+                '',
+                '- [ ] Check `ghcr.io/home-assistant/*-base` for a newer tag than the pins in `forward-fix/build.yaml`.',
+                '- [ ] If newer: bump pins, bump `version` in `forward-fix/config.yaml`, add a CHANGELOG entry.',
+                '- [ ] Rebuild locally (`ha apps rebuild local_forward_fix` on a test HAOS) or bump and cut a new release tag.',
+                '- [ ] Close this issue when done.',
+                '',
+                'Unattended auto-bumps are deliberately off for this firewall tool: every base change gets a human look.',
+              ].join('\n'),
+            });

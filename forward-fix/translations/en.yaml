@@ -1,10 +1,25 @@
 configuration:
   lan_interfaces:
     name: LAN interfaces
-    description: Physical LAN interfaces allowed to forward into the VPN (e.g. end0, eth0, wlan0).
+    description: Physical LAN interfaces allowed to forward into the VPN (e.g. end0, eth0, wlan0). Merged with the auto-detected default-route interface.
   vpn_interfaces:
     name: VPN tunnel interfaces
-    description: Tunnel interfaces to forward to (wt0 = NetBird, tailscale0 = Tailscale, wg0 = WireGuard).
+    description: Tunnel interfaces to forward to (wt0 = NetBird, tailscale0 = Tailscale, wg0 = WireGuard). Merged with detected tunnel devices.
+  lan_subnets:
+    name: LAN subnets (optional)
+    description: Restrict rules to these source/destination CIDRs, e.g. 192.168.178.0/24. Empty = interface-wide (any subnet).
+  vpn_subnets:
+    name: VPN-side subnets (optional)
+    description: Restrict rules to these remote CIDRs, e.g. 10.53.164.0/24. Empty = interface-wide.
+  auto_detect:
+    name: Auto-detect interfaces
+    description: Add the default-route interface and existing tunnel devices automatically. Recommended on.
+  enable_ipv6:
+    name: Enable IPv6 rules
+    description: Mirror the rules to ip6tables (uses IPv6 entries from the subnet lists, or interface-wide).
+  diagnose:
+    name: Diagnose mode
+    description: Log addresses, routes and DOCKER-USER state once at startup. Use for troubleshooting, then turn off.
   enforce_interval_seconds:
     name: Enforcement interval
     description: Seconds between re-applying the DOCKER-USER rules (5-3600).

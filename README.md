@@ -31,9 +31,9 @@ interface lists are configurable, zero-config defaults cover the common case.
    ```
 2. Find **Forward Fix**, Install, Start.
 3. Keep defaults, or configure under **Configuration**:
-   - `lan_interfaces`: e.g. `[end0, eth0, wlan0]`
-   - `vpn_interfaces`: e.g. `[wt0, tailscale0, wg0]`
-   - `enforce_interval_seconds`: e.g. `30`
+   - `lan_interfaces` / `vpn_interfaces` (auto-detected interfaces are added automatically)
+   - `lan_subnets` / `vpn_subnets` (optional CIDR scoping, e.g. `192.168.178.0/24`)
+   - `auto_detect`, `enable_ipv6`, `diagnose`, `enforce_interval_seconds`
 4. Verify (host SSH port 22222):
    ```sh
    iptables -L DOCKER-USER -v -n
@@ -41,6 +41,13 @@ interface lists are configurable, zero-config defaults cover the common case.
    ping -c 3 <remote-ip>
    ```
    From a LAN PC: `tracert <remote-ip>` should pass through HAOS.
+
+## Health
+
+Each cycle writes `/data/status.json` (add-on data) with timestamp, active
+interfaces and rule counts; rules are only logged when something changes, so a
+quiet log means "steady state". For one-shot diagnostics, enable `diagnose`,
+restart, and read the add-on log (addresses, routes, chain state).
 
 ## Security notes
 
