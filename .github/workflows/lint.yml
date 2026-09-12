@@ -1,6 +1,6 @@
 name: Lint
 
-on:
+"on":
   pull_request:
   push:
     branches: [main]
@@ -11,11 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: ShellCheck
-        uses: koalaman/shellcheck-py@v0.1.0
-        with:
-          path: forward-fix/run.sh
-          severity: warning
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - run: shellcheck -S warning forward-fix/run.sh forward-fix/lib.sh
 
   yamllint:
     runs-on: ubuntu-latest

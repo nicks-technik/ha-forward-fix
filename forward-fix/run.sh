@@ -282,11 +282,11 @@ write_status() {
   if [ -w "/data" ]; then
     COUNT="$(iptables -L DOCKER-USER 2>/dev/null | grep -c ACCEPT)"
     if [ "$COUNT" -gt 0 ]; then HEALTHY="ON"; else HEALTHY="OFF"; fi
-    set -- $(chain_totals iptables); PKTS="$1"; BYTES="$2"
+    TOTALS="$(chain_totals iptables)"; PKTS="${TOTALS%% *}"; BYTES="${TOTALS##* }"
     COUNT6="null"; PKTS6="null"; BYTES6="null"
     if [ "$ENABLE_IPV6" = "true" ] && command -v ip6tables >/dev/null 2>&1; then
       COUNT6="$(ip6tables -L DOCKER-USER 2>/dev/null | grep -c ACCEPT)"
-      set -- $(chain_totals ip6tables); PKTS6="$1"; BYTES6="$2"
+      TOTALS6="$(chain_totals ip6tables)"; PKTS6="${TOTALS6%% *}"; BYTES6="${TOTALS6##* }"
     fi
     cat > "$STATUS_FILE" <<EOF
 {"timestamp":"$NOW","lan_interfaces":"$LAN","vpn_interfaces":"$VPN","docker_user_accept_rules":$COUNT,"healthy":"$HEALTHY","packets_total":$PKTS,"bytes_total":$BYTES,"docker_user_accept_rules_v6":$COUNT6,"packets_total_v6":$PKTS6,"bytes_total_v6":$BYTES6,"ipv6_enabled":$([ "$ENABLE_IPV6" = "true" ] && echo true || echo false),"added_this_cycle":$ADDED_N,"pruned_this_cycle":${PRUNED:-0},"last_change":"$LAST_CHANGE"}
