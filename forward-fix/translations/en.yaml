@@ -20,6 +20,9 @@ configuration:
   diagnose:
     name: Diagnose mode
     description: Log addresses, routes and DOCKER-USER state once at startup. Also enables the MQTT counter entities below. Use for troubleshooting, then turn off.
+  prune_stale:
+    name: Prune stale rules
+    description: Delete DOCKER-USER rules between the managed interfaces that are no longer in the desired set (e.g. after narrowing subnets). Off = add-only (safe default). Foreign rules are never touched.
   enforce_interval_seconds:
     name: Enforcement interval
     description: Seconds between re-applying the DOCKER-USER rules (5-3600).

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0
+
+- Health binary sensor: `binary_sensor.forward_fix_healthy` (connectivity
+  device class, diagnose-gated) for alert automations; `healthy` also in
+  `status.json`.
+- Opt-in `prune_stale`: deletes managed-but-undesired `DOCKER-USER` rules
+  (guarded: managed interfaces only, never empty set, deletions logged).
+  Default off (add-only).
+- CI lint workflow: ShellCheck, yamllint, hadolint on PRs.
+- `auto_update: true` so store updates apply without clicks.
+- Docs: FAQ (phantom update badge, host-originated traffic invisibility).
+
 ## 1.2.0
 
 - UI counter entities via MQTT discovery (`sensor.forward_fix_packets`,

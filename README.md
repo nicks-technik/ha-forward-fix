@@ -58,6 +58,8 @@ under a "Forward Fix" device — visible only while diagnose mode is on:
 * `sensor.forward_fix_packets` (total_increasing) — forwarded packets
 * `sensor.forward_fix_bytes` (B, total_increasing) — forwarded bytes
 * `sensor.forward_fix_rules` — active rule count
+* `binary_sensor.forward_fix_healthy` (connectivity) — on while rules are
+  enforced; use it in an automation to alert when forwarding breaks
 
 Turning `diagnose` off removes the entities again automatically. No broker
 configured = no entities, firewall enforcement works the same.
@@ -96,4 +98,4 @@ forward-fix/
 
 ## License
 
-MIT — see `LICENSE`.
+MIT — see [LICENSE](LICENSE).
