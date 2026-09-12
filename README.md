@@ -49,6 +49,12 @@ interfaces and rule counts; rules are only logged when something changes, so a
 quiet log means "steady state". For one-shot diagnostics, enable `diagnose`,
 restart, and read the add-on log (addresses, routes, chain state).
 
+## Screenshots
+
+![Add-on info](images/store-info.png)
+![Configuration](images/configuration.png)
+![Log output](images/log.png)
+
 ## Security notes
 
 - Requires `host_network: true` + `NET_ADMIN` (needed to manage host firewall).
