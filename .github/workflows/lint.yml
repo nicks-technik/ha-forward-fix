@@ -24,8 +24,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - run: pip install yamllint
-      - run: yamllint -d "{extends: default, rules: {line-length: {max: 120}, document-start: disable}}" repository.yaml forward-fix/config.yaml forward-fix/build.yaml .github/workflows/ .github/dependabot.yml
+      - name: Lint YAML
+        run: |
+          pip install yamllint
+          yamllint -d "{extends: default, rules: {line-length: {max: 120}, document-start: disable}}" \
+            repository.yaml forward-fix/config.yaml forward-fix/build.yaml \
+            .github/workflows/ .github/dependabot.yml
 
   hadolint:
     runs-on: ubuntu-latest
