@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1
+
+- `status.json` now includes live `packets_total` / `bytes_total` (and `_v6`
+  variants), summed from the `DOCKER-USER` counters — throughput visible
+  without SSH.
+
 ## 1.1.0
 
 - Auto-detect interfaces: default-route interface + existing tunnel devices

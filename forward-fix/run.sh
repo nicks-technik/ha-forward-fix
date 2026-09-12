@@ -248,17 +248,24 @@ ensure_all() {
   fi
 }
 
+chain_totals() {
+  # $1 = iptables|ip6tables ; echoes "packets bytes" for DOCKER-USER
+  $1 -L DOCKER-USER -v -n -x 2>/dev/null | awk 'NR>2 {p+=$1; b+=$2} END {print p+0, b+0}'
+}
+
 write_status() {
   # $1 = rules_added_this_cycle
   NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
   if [ -w "/data" ]; then
     COUNT="$(iptables -L DOCKER-USER 2>/dev/null | grep -c ACCEPT)"
-    COUNT6=""
+    set -- $(chain_totals iptables); PKTS="$1"; BYTES="$2"
+    COUNT6="null"; PKTS6="null"; BYTES6="null"
     if [ "$ENABLE_IPV6" = "true" ] && command -v ip6tables >/dev/null 2>&1; then
       COUNT6="$(ip6tables -L DOCKER-USER 2>/dev/null | grep -c ACCEPT)"
+      set -- $(chain_totals ip6tables); PKTS6="$1"; BYTES6="$2"
     fi
     cat > "$STATUS_FILE" <<EOF
-{"timestamp":"$NOW","lan_interfaces":"$LAN","vpn_interfaces":"$VPN","docker_user_accept_rules":$COUNT,"docker_user_accept_rules_v6":${COUNT6:-null},"ipv6_enabled":$([ "$ENABLE_IPV6" = "true" ] && echo true || echo false),"added_this_cycle":$1}
+{"timestamp":"$NOW","lan_interfaces":"$LAN","vpn_interfaces":"$VPN","docker_user_accept_rules":$COUNT,"packets_total":$PKTS,"bytes_total":$BYTES,"docker_user_accept_rules_v6":$COUNT6,"packets_total_v6":$PKTS6,"bytes_total_v6":$BYTES6,"ipv6_enabled":$([ "$ENABLE_IPV6" = "true" ] && echo true || echo false),"added_this_cycle":$1}
 EOF
   fi
 }

@@ -1,6 +1,6 @@
 name: Forward Fix
 description: Allow LAN clients to use site-to-site VPNs on HAOS (NetBird, Tailscale, WireGuard) by persisting DOCKER-USER forwarding rules
-version: 1.1.0
+version: 1.1.1
 slug: forward_fix
 arch:
   - aarch64
