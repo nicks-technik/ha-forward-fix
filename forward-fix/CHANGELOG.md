@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.2
+
+- Fix `added_this_cycle` in `status.json` (showed the packet total due to a
+  clobbered positional parameter).
+- Docs: defined guide for viewing increasing counters (field reference, watch
+  commands, 60-second rate check).
+
 ## 1.1.1
 
 - `status.json` now includes live `packets_total` / `bytes_total` (and `_v6`
