@@ -22,6 +22,9 @@ INTERVAL=30
 AUTO_DETECT=true
 ENABLE_IPV6=false
 DIAGNOSE=false
+PRUNE=false
+DESIRED4="/tmp/forward_fix_desired4"
+DESIRED6="/tmp/forward_fix_desired6"
 MQTT_HOST=""
 MQTT_PORT=1883
 MQTT_USER=""
@@ -64,6 +67,7 @@ load_options() {
     AD="$(jq -r '.auto_detect // empty' "$OPTIONS_FILE" 2>/dev/null)"
     IP6="$(jq -r '.enable_ipv6 // empty' "$OPTIONS_FILE" 2>/dev/null)"
     DG="$(jq -r '.diagnose // empty' "$OPTIONS_FILE" 2>/dev/null)"
+    PR="$(jq -r '.prune_stale // empty' "$OPTIONS_FILE" 2>/dev/null)"
     INT="$(jq -r '.enforce_interval_seconds // empty' "$OPTIONS_FILE" 2>/dev/null)"
     MH="$(jq -r '.mqtt_host // empty' "$OPTIONS_FILE" 2>/dev/null)"
     MP="$(jq -r '.mqtt_port // empty' "$OPTIONS_FILE" 2>/dev/null)"
@@ -75,6 +79,8 @@ load_options() {
     [ "$IP6" = "false" ] && ENABLE_IPV6=false
     [ "$DG" = "true" ] && DIAGNOSE=true
     [ "$DG" = "false" ] && DIAGNOSE=false
+    [ "$PR" = "true" ] && PRUNE=true
+    [ "$PR" = "false" ] && PRUNE=false
     MQTT_HOST="$MH"; MQTT_USER="$MU"; MQTT_PASS="$MW"
     case "$MP" in
       ''|*[!0-9]* ) MQTT_PORT=1883 ;;
@@ -135,6 +141,7 @@ ensure_rule4() {
   IN="$1"; OUT="$2"; SRC="$3"; DST="$4"
   valid_iface "$IN" || { log "skipping invalid interface '$IN'"; return 0; }
   valid_iface "$OUT" || { log "skipping invalid interface '$OUT'"; return 0; }
+  printf '%s|%s|%s|%s\n' "$IN" "$OUT" "$SRC" "$DST" >> "$DESIRED4"
   if [ -n "$SRC" ]; then
     valid_cidr "$SRC" || { log "skipping invalid source CIDR '$SRC'"; return 0; }
     is_v6 "$SRC" && { log "skipping IPv6 source '$SRC' for iptables"; return 0; }
@@ -163,6 +170,7 @@ ensure_rule6() {
   IN="$1"; OUT="$2"; SRC="$3"; DST="$4"
   valid_iface "$IN" || return 0
   valid_iface "$OUT" || return 0
+  printf '%s|%s|%s|%s\n' "$IN" "$OUT" "$SRC" "$DST" >> "$DESIRED6"
   if [ -n "$SRC" ]; then
     valid_cidr "$SRC" || { log "skipping invalid source CIDR '$SRC'"; return 0; }
     is_v6 "$SRC" || return 0
@@ -207,6 +215,8 @@ v6_words() {
 ensure_all() {
   ADDED=0
   ADDED6=0
+  : > "$DESIRED4"
+  : > "$DESIRED6"
   LAN4_SUB="$(v4_words "$CFG_LAN_SUB")"
   VPN4_SUB="$(v4_words "$CFG_VPN_SUB")"
   for lan in $LAN; do
@@ -269,12 +279,41 @@ chain_totals() {
   $1 -L DOCKER-USER -v -n -x 2>/dev/null | awk 'NR>2 {p+=$1; b+=$2} END {print p+0, b+0}'
 }
 
+prune_chain() {
+  # $1 = iptables|ip6tables, $2 = desired-signatures file (IN|OUT|SRC|DST per line)
+  # Deletes ACCEPT rules whose both interfaces are in our managed universe but
+  # which are no longer desired. Never touches foreign rules; never prunes
+  # against an empty desired set.
+  [ -s "$2" ] || return 0
+  UNIVERSE=" $LAN $VPN "
+  while IFS= read -r line; do
+    case "$line" in *"-j ACCEPT"*) ;; *) continue ;; esac
+    IN="$(printf '%s' "$line" | sed -n 's/.* -i \([^ ]*\).*/\1/p')"
+    OUT="$(printf '%s' "$line" | sed -n 's/.* -o \([^ ]*\).*/\1/p')"
+    SRC="$(printf '%s' "$line" | sed -n 's/.* -s \([^ ]*\).*/\1/p')"
+    DST="$(printf '%s' "$line" | sed -n 's/.* -d \([^ ]*\).*/\1/p')"
+    [ -n "$IN" ] && [ -n "$OUT" ] || continue
+    case "$UNIVERSE" in *" $IN "*) ;; *) continue ;; esac
+    case "$UNIVERSE" in *" $OUT "*) ;; *) continue ;; esac
+    if ! grep -Fxq "$IN|$OUT|$SRC|$DST" "$2"; then
+      # shellcheck disable=SC2086
+      if $1 -D DOCKER-USER -i "$IN" -o "$OUT" ${SRC:+-s "$SRC"} ${DST:+-d "$DST"} -j ACCEPT 2>/dev/null; then
+        log "pruned stale DOCKER-USER $IN -> $OUT${SRC:+ src $SRC}${DST:+ dst $DST}"
+        PRUNED=$((PRUNED+1))
+      fi
+    fi
+  done <<EOF
+$($1 -S DOCKER-USER 2>/dev/null | grep '^-A ')
+EOF
+}
+
 write_status() {
   # $1 = rules_added_this_cycle (saved first: set -- below would clobber $1)
   ADDED_N="$1"
   NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
   if [ -w "/data" ]; then
     COUNT="$(iptables -L DOCKER-USER 2>/dev/null | grep -c ACCEPT)"
+    if [ "$COUNT" -gt 0 ]; then HEALTHY="ON"; else HEALTHY="OFF"; fi
     set -- $(chain_totals iptables); PKTS="$1"; BYTES="$2"
     COUNT6="null"; PKTS6="null"; BYTES6="null"
     if [ "$ENABLE_IPV6" = "true" ] && command -v ip6tables >/dev/null 2>&1; then
@@ -282,7 +321,7 @@ write_status() {
       set -- $(chain_totals ip6tables); PKTS6="$1"; BYTES6="$2"
     fi
     cat > "$STATUS_FILE" <<EOF
-{"timestamp":"$NOW","lan_interfaces":"$LAN","vpn_interfaces":"$VPN","docker_user_accept_rules":$COUNT,"packets_total":$PKTS,"bytes_total":$BYTES,"docker_user_accept_rules_v6":$COUNT6,"packets_total_v6":$PKTS6,"bytes_total_v6":$BYTES6,"ipv6_enabled":$([ "$ENABLE_IPV6" = "true" ] && echo true || echo false),"added_this_cycle":$ADDED_N}
+{"timestamp":"$NOW","lan_interfaces":"$LAN","vpn_interfaces":"$VPN","docker_user_accept_rules":$COUNT,"healthy":"$HEALTHY","packets_total":$PKTS,"bytes_total":$BYTES,"docker_user_accept_rules_v6":$COUNT6,"packets_total_v6":$PKTS6,"bytes_total_v6":$BYTES6,"ipv6_enabled":$([ "$ENABLE_IPV6" = "true" ] && echo true || echo false),"added_this_cycle":$ADDED_N,"pruned_this_cycle":${PRUNED:-0}}
 EOF
   fi
 }
@@ -334,7 +373,7 @@ mqtt_cycle() {
   # UI counter entities exist only while diagnose mode is on.
   if [ "$DIAGNOSE" = "true" ] && [ -n "$MQTT_HOST" ] && [ -f "$STATUS_FILE" ] \
       && command -v mosquitto_pub >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-    STATE="$(jq -c '{packets_total,bytes_total,docker_user_accept_rules}' "$STATUS_FILE" 2>/dev/null)"
+    STATE="$(jq -c '{packets_total,bytes_total,docker_user_accept_rules,healthy}' "$STATUS_FILE" 2>/dev/null)"
     [ -n "$STATE" ] || return 0
     mqtt_pub "$MQTT_DISC_PREFIX/sensor/forward_fix_packets/config" \
       "$(mqtt_discovery packets_total "Forward Fix packets" packets '{{ value_json.packets_total }}' ',"state_class":"total_increasing"')" 1
@@ -342,6 +381,9 @@ mqtt_cycle() {
       "$(mqtt_discovery bytes_total "Forward Fix bytes" B '{{ value_json.bytes_total }}' ',"device_class":"data_size","state_class":"total_increasing"')" 1
     mqtt_pub "$MQTT_DISC_PREFIX/sensor/forward_fix_rules/config" \
       "$(mqtt_discovery docker_user_accept_rules "Forward Fix rules" rules '{{ value_json.docker_user_accept_rules }}' '')" 1
+    printf '{"name":"Forward Fix healthy","unique_id":"forward_fix_healthy","device_class":"connectivity","payload_on":"ON","payload_off":"OFF","state_topic":"%s","value_template":"{{ value_json.healthy }}","device":%s}' \
+      "$MQTT_STATE_TOPIC" "$(mqtt_device)" > /tmp/forward_fix_health_disc 2>/dev/null
+    mqtt_pub "$MQTT_DISC_PREFIX/binary_sensor/forward_fix_healthy/config" "$(cat /tmp/forward_fix_health_disc 2>/dev/null)" 1
     if mqtt_pub "$MQTT_STATE_TOPIC" "$STATE" 1; then
       touch "$MQTT_FLAG" 2>/dev/null
     else
@@ -353,6 +395,7 @@ mqtt_cycle() {
       for s in packets bytes rules; do
         mqtt_pub "$MQTT_DISC_PREFIX/sensor/forward_fix_${s}/config" "" 1
       done
+      mqtt_pub "$MQTT_DISC_PREFIX/binary_sensor/forward_fix_healthy/config" "" 1
       rm -f "$MQTT_FLAG" 2>/dev/null
       log "diagnose off: removed MQTT entities"
     fi
@@ -368,9 +411,16 @@ while true; do
       diagnose
     fi
     ensure_all
-    SIG="$LAN|$VPN|$CFG_LAN_SUB|$CFG_VPN_SUB|$ENABLE_IPV6"
-    if [ "$ADDED" -gt 0 ] || [ "$ADDED6" -gt 0 ] || [ "$SIG" != "$LAST_SIG" ]; then
-      log "enforced (added v4=$ADDED v6=$ADDED6) lan=[$LAN] vpn=[$VPN]"
+    PRUNED=0
+    if [ "$PRUNE" = "true" ]; then
+      prune_chain iptables "$DESIRED4"
+      if [ "$ENABLE_IPV6" = "true" ] && command -v ip6tables >/dev/null 2>&1; then
+        prune_chain ip6tables "$DESIRED6"
+      fi
+    fi
+    SIG="$LAN|$VPN|$CFG_LAN_SUB|$CFG_VPN_SUB|$ENABLE_IPV6|$PRUNE"
+    if [ "$ADDED" -gt 0 ] || [ "$ADDED6" -gt 0 ] || [ "$PRUNED" -gt 0 ] || [ "$SIG" != "$LAST_SIG" ]; then
+      log "enforced (added v4=$ADDED v6=$ADDED6 pruned=$PRUNED) lan=[$LAN] vpn=[$VPN]"
       LAST_SIG="$SIG"
     fi
     write_status $((ADDED+ADDED6))

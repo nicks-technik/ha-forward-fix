@@ -45,19 +45,24 @@ it on daemon restarts — hence the loop instead of a one-shot script.
 | `enforce_interval_seconds` | int 5–3600 | `30` | Re-apply cadence. Lower = faster repair, more wakeups. |
 
 Invalid interface names/CIDRs are skipped and logged, never passed to iptables.
-Stale rules (e.g. after removing an interface from config) are intentionally
-left alone — add-only is the safe default; restart/rebuild or delete them
-manually, see Uninstall.
+Add-only is the default: with `prune_stale: false` (recommended to start),
+rules are only ever inserted. Enable `prune_stale: true` to also delete
+`DOCKER-USER` ACCEPT rules whose *both* interfaces belong to the managed
+LAN/VPN sets but which are no longer desired (e.g. after narrowing subnets).
+Pruning never runs against an empty desired set and never touches foreign
+rules (Docker's own, other tools'). Deletions are logged with `pruned ...`.
 
 ## Health monitoring
 
 `/data/status.json` example:
 ```json
-{"timestamp":"2026-09-12T06:00:00Z","lan_interfaces":"end0 eth0 wlan0","vpn_interfaces":"wt0","docker_user_accept_rules":4,"packets_total":12345,"bytes_total":987654,"docker_user_accept_rules_v6":null,"packets_total_v6":null,"bytes_total_v6":null,"ipv6_enabled":false,"added_this_cycle":0}
+{"timestamp":"2026-09-12T06:00:00Z","lan_interfaces":"end0 eth0 wlan0","vpn_interfaces":"wt0","docker_user_accept_rules":4,"healthy":"ON","packets_total":12345,"bytes_total":987654,"docker_user_accept_rules_v6":null,"packets_total_v6":null,"bytes_total_v6":null,"ipv6_enabled":false,"added_this_cycle":0,"pruned_this_cycle":0}
 ```
 `packets_total` / `bytes_total` sum the live `DOCKER-USER` counters, so you can
 watch throughput without parsing logs. A quiet log means steady state;
 `added_this_cycle > 0` after Docker/VPN restarts is normal (chain was recreated).
+`binary_sensor.forward_fix_healthy` mirrors rule presence for automations
+(connectivity device class, diagnose-gated like the other entities).
 
 Live per-rule counters via host SSH (port 22222), refreshing every 2 seconds:
 
@@ -151,6 +156,23 @@ human look.
   for `[forward-fix]` lines.
 - Rules present but no packets → LAN router static route missing; test with a
   temporary host route on the PC pointing at HAOS.
+- Pruned a rule you still need → it reappears next cycle as long as it matches
+  the desired set; turn `prune_stale` off if anything looks wrong, then inspect.
+
+## FAQ
+
+**The UI still offers an update right after I updated via CLI / the Update
+button fails with "No update available".**
+Known Supervisor quirk, seen repeatedly: the backend is already correct
+(`ha apps info` shows new version, `ha supervisor available-updates` is empty),
+only the frontend badge is stale. Clear sequence: `ha store reload` →
+`ha supervisor restart` (add-ons keep running) → browser hard-refresh
+(`Ctrl + Shift + R`). Verify server-side first before assuming a real problem.
+
+**Do pings started on HAOS itself move the counters?**
+No — host-originated traffic uses `OUTPUT`, never `FORWARD`. Only traffic
+forwarded *through* the host (LAN → VPN) is counted, outbound leg only
+(replies take the established path). By design.
 - `wt0` missing → VPN add-on not connected; fix VPN first.
 - New board / renamed interface: auto-detect covers it; check the log line
   `enforced ... lan=[...] vpn=[...]` to confirm. Set `auto_detect: false` only
