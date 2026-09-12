@@ -68,6 +68,11 @@ under a "Forward Fix" device — visible only while diagnose mode is on:
 Turning `diagnose` off removes the entities again automatically. No broker
 configured = no entities, firewall enforcement works the same.
 
+> **Further reading:** the [extended documentation](forward-fix/DOCS.md) covers
+> what the counters actually measure, how to watch them live (SSH + status
+> file), the health sensor, and a **FAQ** (stale update badge, invisible
+> host-originated traffic, quiet logs).
+
 ## Screenshots
 
 ![Add-on info](images/store-info.png)
