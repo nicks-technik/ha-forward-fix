@@ -10,6 +10,10 @@
 #   - writes /data/status.json for external health checks
 #
 # Interface names and CIDRs are strictly validated to prevent rule injection.
+# Pure helpers live in lib.sh (unit-tested); source them relatively so both
+# the container (/run.sh + /lib.sh) and tests work.
+# shellcheck disable=SC1091
+. "$(dirname "$0")/lib.sh"
 
 OPTIONS_FILE="/data/options.json"
 STATUS_FILE="/data/status.json"
@@ -33,26 +37,6 @@ FIRST_RUN=true
 LAST_SIG=""
 
 log() { echo "[forward-fix] $1"; }
-
-valid_iface() {
-  case "$1" in
-    ""|*[!a-zA-Z0-9._-]* ) return 1 ;;
-    *) return 0 ;;
-  esac
-}
-
-valid_cidr() {
-  # 192.168.0.0/24 or fd00::/64 style, digits/hex + . : / only
-  case "$1" in
-    ""|*[!0-9a-fA-F.:\/]* ) return 1 ;;
-    *"/"* ) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-is_v6() {
-  case "$1" in *:*) return 0 ;; *) return 1 ;; esac
-}
 
 load_options() {
   LAN_CFG=""
@@ -99,13 +83,7 @@ load_options() {
   CFG_VPN_SUB="$VPN_SUB"
 }
 
-# add_word LIST WORD -> LIST without duplicates
-add_word() {
-  case " $1 " in
-    *" $2 "*) printf '%s' "$1" ;;
-    *) if [ -z "$1" ]; then printf '%s' "$2"; else printf '%s %s' "$1" "$2"; fi ;;
-  esac
-}
+# v4/v6 subnet splitters and dedup live in lib.sh (unit-tested).
 
 detect_interfaces() {
   DET_LAN=""
@@ -192,24 +170,6 @@ ensure_rule6() {
     ip6tables -C DOCKER-USER -i "$IN" -o "$OUT" -j ACCEPT 2>/dev/null && return 0
     ip6tables -I DOCKER-USER -i "$IN" -o "$OUT" -j ACCEPT 2>&1 && { log "added DOCKER-USER(v6) $IN -> $OUT"; ADDED6=$((ADDED6+1)); }
   fi
-}
-
-# v4-only subnet words (no colon)
-v4_words() {
-  OUT=""
-  for w in $1; do
-    case "$w" in *:*) ;; *) OUT="$OUT $w" ;; esac
-  done
-  printf '%s' "$OUT"
-}
-
-# v6-only subnet words (contain colon)
-v6_words() {
-  OUT=""
-  for w in $1; do
-    case "$w" in *:*) OUT="$OUT $w" ;; esac
-  done
-  printf '%s' "$OUT"
 }
 
 ensure_all() {
@@ -311,6 +271,14 @@ write_status() {
   # $1 = rules_added_this_cycle (saved first: set -- below would clobber $1)
   ADDED_N="$1"
   NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
+  if [ $((ADDED_N + ${PRUNED:-0})) -gt 0 ]; then
+    LAST_CHANGE="$NOW"
+  elif [ -z "${LAST_CHANGE:-}" ] && [ -f "$STATUS_FILE" ] && command -v jq >/dev/null 2>&1; then
+    LAST_CHANGE="$(jq -r '.last_change // empty' "$STATUS_FILE" 2>/dev/null)"
+    [ -n "$LAST_CHANGE" ] || LAST_CHANGE="$NOW"
+  elif [ -z "${LAST_CHANGE:-}" ]; then
+    LAST_CHANGE="$NOW"
+  fi
   if [ -w "/data" ]; then
     COUNT="$(iptables -L DOCKER-USER 2>/dev/null | grep -c ACCEPT)"
     if [ "$COUNT" -gt 0 ]; then HEALTHY="ON"; else HEALTHY="OFF"; fi
@@ -321,7 +289,7 @@ write_status() {
       set -- $(chain_totals ip6tables); PKTS6="$1"; BYTES6="$2"
     fi
     cat > "$STATUS_FILE" <<EOF
-{"timestamp":"$NOW","lan_interfaces":"$LAN","vpn_interfaces":"$VPN","docker_user_accept_rules":$COUNT,"healthy":"$HEALTHY","packets_total":$PKTS,"bytes_total":$BYTES,"docker_user_accept_rules_v6":$COUNT6,"packets_total_v6":$PKTS6,"bytes_total_v6":$BYTES6,"ipv6_enabled":$([ "$ENABLE_IPV6" = "true" ] && echo true || echo false),"added_this_cycle":$ADDED_N,"pruned_this_cycle":${PRUNED:-0}}
+{"timestamp":"$NOW","lan_interfaces":"$LAN","vpn_interfaces":"$VPN","docker_user_accept_rules":$COUNT,"healthy":"$HEALTHY","packets_total":$PKTS,"bytes_total":$BYTES,"docker_user_accept_rules_v6":$COUNT6,"packets_total_v6":$PKTS6,"bytes_total_v6":$BYTES6,"ipv6_enabled":$([ "$ENABLE_IPV6" = "true" ] && echo true || echo false),"added_this_cycle":$ADDED_N,"pruned_this_cycle":${PRUNED:-0},"last_change":"$LAST_CHANGE"}
 EOF
   fi
 }
@@ -373,7 +341,7 @@ mqtt_cycle() {
   # UI counter entities exist only while diagnose mode is on.
   if [ "$DIAGNOSE" = "true" ] && [ -n "$MQTT_HOST" ] && [ -f "$STATUS_FILE" ] \
       && command -v mosquitto_pub >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-    STATE="$(jq -c '{packets_total,bytes_total,docker_user_accept_rules,healthy}' "$STATUS_FILE" 2>/dev/null)"
+    STATE="$(jq -c '{packets_total,bytes_total,docker_user_accept_rules,healthy,last_change}' "$STATUS_FILE" 2>/dev/null)"
     [ -n "$STATE" ] || return 0
     mqtt_pub "$MQTT_DISC_PREFIX/sensor/forward_fix_packets/config" \
       "$(mqtt_discovery packets_total "Forward Fix packets" packets '{{ value_json.packets_total }}' ',"state_class":"total_increasing"')" 1
